@@ -7,7 +7,7 @@
 std::ifstream in("input.txt");
 std::ofstream out("output.txt");
 
-const size_t ALPHABET_SIZE = 27;
+const size_t ALPHABET_SIZE = 1000;
 const char ALPHABET_START = 'a';
 const char LAST_SYMBOL = '$';
 
@@ -25,6 +25,16 @@ std::vector<int> stringToVector(const std::string &input)
     }
     result.back() = 0;
     return result;
+}
+
+int getAlphabetSize(std::vector<int> &input)
+{
+    int result = input[0];
+    for (size_t i = 0; i < input.size(); i++)
+    {
+        result = std::max(result, input[i]);
+    }
+    return result + 1;
 }
 
 std::vector<SubstringMode> createSLflagsArray(std::vector<int> &input)
@@ -90,7 +100,7 @@ std::vector<std::vector<int> > createLevelsArrays(std::vector<int> &input, std::
         maxDistance = std::max(maxDistance, distances[i]);
     }
     std::vector<std::vector<int> > result(maxDistance + 1);
-    std::vector<std::vector<int> > sorting(ALPHABET_SIZE);
+    std::vector<std::vector<int> > sorting(getAlphabetSize(input));
     for (size_t i = 0; i < input.size(); i++)
     {
         sorting[input[i]].push_back(i);
@@ -105,12 +115,12 @@ std::vector<std::vector<int> > createLevelsArrays(std::vector<int> &input, std::
     return result;
 }
 
-void putItemToTheStartOfBucket(int currItem, std::vector<int> &result, 
+void putItemToTheCornerOfBucket(int currItem, std::vector<int> &result, 
                                std::vector<int> &buckets, std::vector<int> &positions, 
-                               std::vector<int> &bucketBegin)
+                               std::vector<int> &bucketCorner, int delta)
 {
-    int from = positions[currItem], to = bucketBegin[buckets[from]];
-    bucketBegin[buckets[from]]++;
+    int from = positions[currItem], to = bucketCorner[buckets[from]];
+    bucketCorner[buckets[from]] += delta;
     std::swap(positions[currItem], positions[result[to]]);
     std::swap(result[to], result[from]);
 }
@@ -133,13 +143,62 @@ void compressBuckets(std::vector<int> &buckets)
     }
 }
 
+void sortSubstringsInBuckets(int firstInit, int firstStart, int firstFinish, int firstDelta, int secondMode,
+    std::vector<bool> &bucketCornerFlags, std::vector<int> &bucketCorner, std::vector<int> &buckets,
+    std::vector<int> &result, std::vector<int> &input, std::vector<std::vector<int> > &levels, std::vector<int> &positions)
+{
+    int currBucket = 0;
+    bucketCornerFlags[firstInit] = true;
+    bucketCorner.push_back(firstInit);
+    buckets[firstInit] = currBucket;
+    for (int i = firstStart; i != firstFinish; i += firstDelta)
+    {
+        if (input[result[i]] != input[result[i - firstDelta]])
+        {
+            currBucket++;
+            bucketCorner.push_back(i);
+            bucketCornerFlags[i] = true;
+        }
+        buckets[i] = currBucket;
+    }
+
+    for (size_t currLevel = 1; currLevel < levels.size(); currLevel++)
+    {
+        int secondDelta = (secondMode == 0 ? 1 : -1);
+        int secondStart = (secondMode == 0 ? 0 : levels[currLevel].size() - 1);
+        int secondFinish = (secondMode == 0 ? levels[currLevel].size() : -1);
+        for (int i = secondStart; i != secondFinish; i += secondDelta)
+        {
+            putItemToTheCornerOfBucket(levels[currLevel][i] - currLevel, result,
+                buckets, positions, bucketCorner, secondDelta);
+        }
+
+        for (int i = secondStart; i != secondFinish; i += secondDelta)
+        {
+            int curr = positions[levels[currLevel][i] - currLevel];
+            if (bucketCornerFlags[curr] 
+                || input[result[curr] + currLevel] != input[result[curr - secondDelta] + currLevel])
+            {
+                currBucket++;
+                bucketCorner.push_back(curr);
+                buckets[curr] = currBucket;
+                bucketCornerFlags[curr] = true;
+            }
+            else
+            {
+                buckets[curr] = buckets[curr - secondDelta];
+            }
+        }
+    }
+}
+
 std::vector<std::pair<int, int> > sortSubstrings(std::vector<int> &input, 
                                                  std::vector<std::vector<int> > &levels, 
                                                  std::vector<SubstringMode> &flags)
 {   
     std::vector<int> result;
     SubstringMode currMode = flags.back();
-    std::vector<std::vector<int> > sorted(ALPHABET_SIZE);
+    std::vector<std::vector<int> > sorted(getAlphabetSize(input));
     for (size_t i = 0; i < input.size(); i++)
     {
         if (flags[i] == currMode)
@@ -161,53 +220,19 @@ std::vector<std::pair<int, int> > sortSubstrings(std::vector<int> &input,
     {
         positions[result[i]] = i;
     }
-    std::vector<int> bucketBeginnings;
-    std::vector<bool> bucketBeginningsFlags(result.size(), false);
+    std::vector<int> bucketCorner;
+    std::vector<bool> bucketCornerFlags(result.size(), false);
     int currBucket = 0;
 
-    bucketBeginningsFlags[0] = true;
-    bucketBeginnings.push_back(0);
-    buckets[0] = currBucket;
-    for (size_t i = 1; i < result.size(); i++)
+    if (flags.back() == SubstringMode::S_MODE)
     {
-        if (input[result[i]] != input[result[i - 1]])
-        {
-            currBucket++;
-            bucketBeginnings.push_back(i);
-            bucketBeginningsFlags[i] = true;
-        }
-        buckets[i] = currBucket;
+        sortSubstringsInBuckets(0, 1, result.size(), 1, 0, 
+            bucketCornerFlags, bucketCorner, buckets, result, input, levels, positions);
     }
-
-    for (size_t currLevel = 1; currLevel < levels.size(); currLevel++)
+    else
     {
-        putItemToTheStartOfBucket(levels[currLevel][0] - currLevel, result, 
-                                  buckets, positions, bucketBeginnings);
-        for (size_t i = 1; i < levels[currLevel].size(); i++)
-        {
-            putItemToTheStartOfBucket(levels[currLevel][i] - currLevel, result,
-                                      buckets, positions, bucketBeginnings);
-        }
-
-        currBucket++;
-        int curr = positions[levels[currLevel][0] - currLevel];
-        bucketBeginnings.push_back(curr);
-        buckets[curr] = currBucket;
-        for (size_t i = 1; i < levels[currLevel].size(); i++)
-        {
-            curr = positions[levels[currLevel][i] - currLevel];
-            if (bucketBeginningsFlags[curr] || input[result[curr] + currLevel] != input[result[curr - 1] + currLevel])
-            {
-                currBucket++;
-                bucketBeginnings.push_back(curr);
-                buckets[curr] = currBucket;
-                bucketBeginningsFlags[curr] = true;
-            }
-            else
-            {
-                buckets[curr] = buckets[curr - 1];
-            }
-        }
+        sortSubstringsInBuckets(result.size() - 1, result.size() - 2, -1, -1, 1,
+            bucketCornerFlags, bucketCorner, buckets, result, input, levels, positions);
     }
 
     compressBuckets(buckets);
@@ -222,6 +247,7 @@ std::vector<std::pair<int, int> > sortSubstrings(std::vector<int> &input,
 std::pair<std::vector<int>, std::vector<int> > createShorterString(std::vector<int> &input, 
                                                                    std::vector<SubstringMode> &slFlags)
 {
+    int currAlphabetSize = getAlphabetSize(input);
     std::vector<size_t> distances = createDistanceArray(slFlags);
     std::vector<std::vector<int> > levelsOfChars = createLevelsArrays(input, distances);
     std::vector<std::pair<int, int> > sortedSubstrings = sortSubstrings(input, levelsOfChars, slFlags);
@@ -241,22 +267,31 @@ std::pair<std::vector<int>, std::vector<int> > createShorterString(std::vector<i
     return std::make_pair(result, newInput);
 }
 
-void moveSuffixToTHeBeginOfTHeBucket(int currSuffix, std::vector<int> &result, std::vector<int> &positions,
-                                     std::vector<int> &bucketBegins, std::vector<int> &buckets)
+void moveSuffixToTheCornerOfTheBucket(int currSuffix, std::vector<int> &result, std::vector<int> &positions,
+                                   std::vector<int> &bucketCorner, std::vector<int> &buckets, int delta)
 {
-    int from = positions[currSuffix], to = bucketBegins[buckets[from]];
+    int from = positions[currSuffix], to = bucketCorner[buckets[from]];
     std::swap(positions[currSuffix], positions[result[to]]);
     std::swap(result[to], result[from]);
-    bucketBegins[buckets[from]]++;
+    bucketCorner[buckets[from]] += delta;
 }
 
-void moveSuffixToTheEndOfTheBucket(int currSuffix, std::vector<int> &result, std::vector<int> &positions,
-                                   std::vector<int> &bucketEnds, std::vector<int> &buckets)
+void sortSuffixesInBuckets(int firstStart, int firstFinish, int firstDelta, int secondStart, int secondFinish, int secondDelta,
+    SubstringMode currMode, std::vector<int> &sortedModeSuffix, std::vector<int> &result, std::vector<int> &positions, 
+    std::vector<int> &bucketFirstCorners, std::vector<int> &bucketSecondCorners, std::vector<int> &buckets, 
+    std::vector<SubstringMode> &slFlags)
 {
-    int from = positions[currSuffix], to = bucketEnds[buckets[from]];
-    std::swap(positions[currSuffix], positions[result[to]]);
-    std::swap(result[to], result[from]);
-    bucketEnds[buckets[from]]--;
+    for (int i = firstStart; i != firstFinish; i += firstDelta)
+    {
+        moveSuffixToTheCornerOfTheBucket(sortedModeSuffix[i], result, positions, bucketFirstCorners, buckets, firstDelta);
+    }
+    for (int i = secondStart; i != secondFinish; i += secondDelta)
+    {
+        if (result[i] != 0 && slFlags[result[i] - 1] == currMode)
+        {
+            moveSuffixToTheCornerOfTheBucket(result[i] - 1, result, positions, bucketSecondCorners, buckets, secondDelta);
+        }
+    }
 }
 
 std::vector<int> sortSuffixesWithShortResult(std::vector<int> &input, std::vector<int> &shortResult,
@@ -272,12 +307,25 @@ std::vector<int> sortSuffixesWithShortResult(std::vector<int> &input, std::vecto
             positionsOfShortInLong.push_back(i);
         }
     }
+
+    /*for (size_t i = 0; i < positionsOfShortInLong.size(); i++)
+    {
+        out << i << " " << positionsOfShortInLong[i] << std::endl;
+    }
+    out << std::endl;
+
+    for (size_t i = 0; i < shortResult.size(); i++)
+    {
+        out << shortResult[i] << " ";
+    }
+    out << std::endl;*/
+
     for (size_t i = 0; i < shortResult.size(); i++)
     {
         sortedModeSuffix.push_back(positionsOfShortInLong[shortResult[i]]);
     }
 
-    std::vector<std::vector<int> > sortedByFirstChar(ALPHABET_SIZE);
+    std::vector<std::vector<int> > sortedByFirstChar(getAlphabetSize(input));
     for (size_t i = 0; i < input.size(); i++)
     {
         sortedByFirstChar[input[i]].push_back(i);
@@ -312,34 +360,47 @@ std::vector<int> sortSuffixesWithShortResult(std::vector<int> &input, std::vecto
 
     if (slFlags.back() == SubstringMode::S_MODE)
     {
-        for (int i = sortedModeSuffix.size() - 1; i >= 0; i--)
-        {
-            moveSuffixToTheEndOfTheBucket(sortedModeSuffix[i], result, positions, bucketEnds, buckets);
-        }
-        for (size_t i = 0; i < result.size(); i++)
-        {
-            if (result[i] != 0 && slFlags[result[i] - 1] == SubstringMode::L_MODE)
-            {
-                moveSuffixToTHeBeginOfTHeBucket(result[i] - 1, result, positions, bucketBegins, buckets);
-            }
-        }
+        sortSuffixesInBuckets(sortedModeSuffix.size() - 1, -1, -1, 0, result.size(), 1, SubstringMode::L_MODE,
+            sortedModeSuffix, result, positions, bucketEnds, bucketBegins, buckets, slFlags);
     }
     else
     {
-        for (size_t i = 0; i < sortedModeSuffix.size(); i++)
-        {
-            moveSuffixToTHeBeginOfTHeBucket(sortedModeSuffix[i], result, positions, bucketBegins, buckets);
-        }
-        for (int i = result.size() - 1; i >= 0; i--)
-        {
-            if (result[i] != 0 && slFlags[result[i] - 1] == SubstringMode::S_MODE)
-            {
-                moveSuffixToTheEndOfTheBucket(result[i] - 1, result, positions, bucketEnds, buckets);
-            }
-        }
+        sortSuffixesInBuckets(0, sortedModeSuffix.size(), 1, result.size() - 1, -1, -1, SubstringMode::S_MODE,
+            sortedModeSuffix, result, positions, bucketBegins, bucketEnds, buckets, slFlags);
     }
 
     return result;
+}
+
+void printSuffix(const std::vector<int> &input, int suffixBegin)
+{
+    std::vector<int> s = input;
+    for (size_t i = suffixBegin; i < s.size(); i++)
+        out << s[i] << ' ';
+}
+
+void compareSuffix(const std::vector<int> &s, int first, int second)
+{
+    std::vector<int> input = s;
+    std::vector<int> firstS;
+    std::vector<int> secondS;
+    for (size_t i = first; i < input.size(); i++)
+    {
+        firstS.push_back(input[i]);
+    }
+    for (size_t i = second; i < input.size(); i++)
+    {
+        secondS.push_back(input[i]);
+    }
+
+    if (firstS < secondS)
+    {
+        out << " OK";
+    }
+    else
+    {
+        out << " BAD";
+    }
 }
 
 std::vector<int> createSuffixArrayFromIntArray(std::vector<int> &input)
@@ -355,6 +416,21 @@ std::vector<int> createSuffixArrayFromIntArray(std::vector<int> &input)
     std::vector<SubstringMode> slFlags = createSLflagsArray(input);
     std::pair<std::vector<int>, std::vector<int> > shortInput = createShorterString(input, slFlags);
     std::vector<int> shortResult = createSuffixArrayFromIntArray(shortInput.first);
+    /*out << slFlags.back() << std::endl;
+    for (size_t i = 0; i < shortResult.size(); i++)
+    {
+        out << shortResult[i] << ": ";
+        printSuffix(shortInput.first, shortResult[i]);
+        if (i < shortResult.size() - 1)
+        {
+            compareSuffix(shortInput.first, shortResult[i], shortResult[i + 1]);
+        }
+        out << std::endl;
+    }
+    printSuffix(shortInput.first, 0);
+    out << " - short input" << std::endl;
+    printSuffix(input, 0);
+    out << " - input" << std::endl << std::endl << std::endl;*/
     std::vector<int> result = sortSuffixesWithShortResult(input, shortResult, shortInput, slFlags);
     return result;
 }
@@ -363,6 +439,52 @@ std::vector<int> createSuffixArray(const std::string &s)
 {
     std::vector<int> input = stringToVector(s);
     std::vector<int> result = createSuffixArrayFromIntArray(input);
+    /*for (size_t i = 0; i < result.size(); i++)
+    {
+        out << result[i] << ": ";
+        printSuffix(input, result[i]);
+        if (i < result.size() - 1)
+        {
+            compareSuffix(input, result[i], result[i + 1]);
+        }
+        out << std::endl;
+    }
+    out << std::endl;*/
+    return result;
+}
+
+std::vector<int> createLCParray(const std::string &s, std::vector<int> &sufArr)
+{
+    std::string input = s + LAST_SYMBOL;
+    std::vector<int> result(sufArr.size());
+    std::vector<int> positions(sufArr.size());
+    for (size_t i = 0; i < sufArr.size(); i++)
+    {
+        positions[sufArr[i]] = i;
+    }
+    int currCommonPreffix = 0;
+    for (int i = 0; i < input.length(); i++)
+    {
+        if (currCommonPreffix > 0)
+        {
+            currCommonPreffix--;
+        }
+        if (positions[i] == input.length() - 1)
+        {
+            result[input.length() - 1] = -1;
+            currCommonPreffix = 0;
+        }
+        else
+        {
+            int j = sufArr[positions[i] + 1];
+            while (std::max(i + currCommonPreffix, j + currCommonPreffix) < input.length()
+                && input[i + currCommonPreffix] == input[j + currCommonPreffix])
+            {
+                currCommonPreffix++;
+            }
+            result[positions[i]] = currCommonPreffix;
+        }
+    }
     return result;
 }
 
@@ -371,19 +493,76 @@ void printSuffix(const std::string &input, int suffixBegin)
     std::string s = input + LAST_SYMBOL;
     for (size_t i = suffixBegin; i < s.length(); i++)
         out << s[i];
-    out << std::endl;
+}
+
+void compareSuffix(const std::string &s, int first, int second)
+{
+    std::string input = s + LAST_SYMBOL;
+    std::string firstS = "";
+    std::string secondS = "";
+    for (size_t i = first; i < input.length(); i++)
+    {
+        firstS += input[i];
+    }
+    for (size_t i = second; i < input.length(); i++)
+    {
+        secondS += input[i];
+    }
+
+    if (firstS < secondS)
+    {
+        out << " OK";
+    }
+    else
+    {
+        out << " BAD";
+    }
+}
+
+std::string createString(const std::string &input, int k, int start)
+{
+    std::string result = "";
+    for (int i = start; i < start + k; i++)
+    {
+        result += input[i % input.length()];
+    }
+    return result;
 }
 
 int main()
 {
     std::string input;
+    int k;
+    //in >> k;
     in >> input;
+    //std::cin >> k;
+    //std::cin >> input;
 
-    std::vector<int> sufArr = createSuffixArray(input);
-    for (size_t i = 0; i < sufArr.size(); i++)
-    {
+    //for (int i = 0; i < input.length(); i++)
+    //{
+        std::string currInput = createString(input, input.length(), 0);
+
+        std::vector<int> sufArr = createSuffixArray(currInput);
+        std::vector<int> lcp = createLCParray(currInput, sufArr);
+        /*for (size_t i = 0; i < sufArr.size(); i++)
+        {
         printSuffix(input, sufArr[i]);
-    }
+        out << " " << lcp[i];
+        if (i < sufArr.size() - 1)
+        {
+        compareSuffix(input, sufArr[i], sufArr[i + 1]);
+        }
+        out << std::endl;
+        }*/
+
+        long long ans = 0ll;
+        for (size_t i = 0; i < sufArr.size() - 1; i++)
+        {
+            ans += (currInput.length() - sufArr[i + 1] - lcp[i]) * 1ll;
+        }
+        out << ans << ' ';
+        //std::cout << ans << ' ';
+    //}
 
     return 0;
 }
