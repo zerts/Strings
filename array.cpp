@@ -27,7 +27,7 @@ std::vector<int> stringToVector(const std::string &input)
     return result;
 }
 
-int getAlphabetSize(std::vector<int> &input)
+int getAlphabetSize(const std::vector<int> &input)
 {
     int result = input[0];
     for (size_t i = 0; i < input.size(); i++)
@@ -37,7 +37,7 @@ int getAlphabetSize(std::vector<int> &input)
     return result + 1;
 }
 
-std::vector<SubstringMode> createSLflagsArray(std::vector<int> &input)
+std::vector<SubstringMode> createSLflagsArray(const std::vector<int> &input)
 {
     std::vector<SubstringMode> result(input.size());
     SubstringMode currFlag = SubstringMode::L_MODE;
@@ -72,7 +72,7 @@ std::vector<SubstringMode> createSLflagsArray(std::vector<int> &input)
     return result;
 }
 
-std::vector<size_t> createDistanceArray(std::vector<SubstringMode> &flags)
+std::vector<size_t> createDistanceArray(const std::vector<SubstringMode> &flags)
 {
     SubstringMode currMode = flags.back();
     size_t currDistance = 0;
@@ -92,7 +92,7 @@ std::vector<size_t> createDistanceArray(std::vector<SubstringMode> &flags)
     return result;
 }
 
-std::vector<std::vector<int> > createLevelsArrays(std::vector<int> &input, std::vector<size_t> &distances)
+std::vector<std::vector<int> > createLevelsArrays(const std::vector<int> &input, std::vector<size_t> &distances)
 {
     size_t maxDistance = 0;
     for (size_t i = 0; i < distances.size(); i++)
@@ -116,7 +116,7 @@ std::vector<std::vector<int> > createLevelsArrays(std::vector<int> &input, std::
 }
 
 void putItemToTheCornerOfBucket(int currItem, std::vector<int> &result, 
-                               std::vector<int> &buckets, std::vector<int> &positions, 
+                               const std::vector<int> &buckets, std::vector<int> &positions, 
                                std::vector<int> &bucketCorner, int delta)
 {
     int from = positions[currItem], to = bucketCorner[buckets[from]];
@@ -144,9 +144,11 @@ void compressBuckets(std::vector<int> &buckets)
 }
 
 void sortSubstringsInBuckets(int firstInit, int firstStart, int firstFinish, int firstDelta, int secondMode,
-    std::vector<bool> &bucketCornerFlags, std::vector<int> &bucketCorner, std::vector<int> &buckets,
-    std::vector<int> &result, std::vector<int> &input, std::vector<std::vector<int> > &levels, std::vector<int> &positions)
+    std::vector<int> &buckets, std::vector<int> &result, const std::vector<int> &input, 
+    const std::vector<std::vector<int> > &levels, std::vector<int> &positions)
 {
+    std::vector<int> bucketCorner;
+    std::vector<bool> bucketCornerFlags(result.size(), false);
     int currBucket = 0;
     bucketCornerFlags[firstInit] = true;
     bucketCorner.push_back(firstInit);
@@ -192,9 +194,9 @@ void sortSubstringsInBuckets(int firstInit, int firstStart, int firstFinish, int
     }
 }
 
-std::vector<std::pair<int, int> > sortSubstrings(std::vector<int> &input, 
-                                                 std::vector<std::vector<int> > &levels, 
-                                                 std::vector<SubstringMode> &flags)
+std::vector<std::pair<int, int> > sortSubstrings(const std::vector<int> &input, 
+                                                 const std::vector<std::vector<int> > &levels, 
+                                                 const std::vector<SubstringMode> &flags)
 {   
     std::vector<int> result;
     SubstringMode currMode = flags.back();
@@ -220,19 +222,14 @@ std::vector<std::pair<int, int> > sortSubstrings(std::vector<int> &input,
     {
         positions[result[i]] = i;
     }
-    std::vector<int> bucketCorner;
-    std::vector<bool> bucketCornerFlags(result.size(), false);
-    int currBucket = 0;
 
     if (flags.back() == SubstringMode::S_MODE)
     {
-        sortSubstringsInBuckets(0, 1, result.size(), 1, 0, 
-            bucketCornerFlags, bucketCorner, buckets, result, input, levels, positions);
+        sortSubstringsInBuckets(0, 1, result.size(), 1, 0, buckets, result, input, levels, positions);
     }
     else
     {
-        sortSubstringsInBuckets(result.size() - 1, result.size() - 2, -1, -1, 1,
-            bucketCornerFlags, bucketCorner, buckets, result, input, levels, positions);
+        sortSubstringsInBuckets(result.size() - 1, result.size() - 2, -1, -1, 1, buckets, result, input, levels, positions);
     }
 
     compressBuckets(buckets);
@@ -244,8 +241,8 @@ std::vector<std::pair<int, int> > sortSubstrings(std::vector<int> &input,
     return resultPairs;
 }
 
-std::pair<std::vector<int>, std::vector<int> > createShorterString(std::vector<int> &input, 
-                                                                   std::vector<SubstringMode> &slFlags)
+std::pair<std::vector<int>, std::vector<int> > createShorterString(const std::vector<int> &input, 
+                                                                   const std::vector<SubstringMode> &slFlags)
 {
     int currAlphabetSize = getAlphabetSize(input);
     std::vector<size_t> distances = createDistanceArray(slFlags);
@@ -268,7 +265,7 @@ std::pair<std::vector<int>, std::vector<int> > createShorterString(std::vector<i
 }
 
 void moveSuffixToTheCornerOfTheBucket(int currSuffix, std::vector<int> &result, std::vector<int> &positions,
-                                   std::vector<int> &bucketCorner, std::vector<int> &buckets, int delta)
+                                   std::vector<int> &bucketCorner, const std::vector<int> &buckets, int delta)
 {
     int from = positions[currSuffix], to = bucketCorner[buckets[from]];
     std::swap(positions[currSuffix], positions[result[to]]);
@@ -278,8 +275,8 @@ void moveSuffixToTheCornerOfTheBucket(int currSuffix, std::vector<int> &result, 
 
 void sortSuffixesInBuckets(int firstStart, int firstFinish, int firstDelta, int secondStart, int secondFinish, int secondDelta,
     SubstringMode currMode, std::vector<int> &sortedModeSuffix, std::vector<int> &result, std::vector<int> &positions, 
-    std::vector<int> &bucketFirstCorners, std::vector<int> &bucketSecondCorners, std::vector<int> &buckets, 
-    std::vector<SubstringMode> &slFlags)
+    std::vector<int> &bucketFirstCorners, std::vector<int> &bucketSecondCorners, const std::vector<int> &buckets, 
+    const std::vector<SubstringMode> &slFlags)
 {
     for (int i = firstStart; i != firstFinish; i += firstDelta)
     {
@@ -294,9 +291,9 @@ void sortSuffixesInBuckets(int firstStart, int firstFinish, int firstDelta, int 
     }
 }
 
-std::vector<int> sortSuffixesWithShortResult(std::vector<int> &input, std::vector<int> &shortResult,
-                                             std::pair<std::vector<int>, std::vector<int> > &shortInput, 
-                                             std::vector<SubstringMode> &slFlags)
+std::vector<int> sortSuffixesWithShortResult(const std::vector<int> &input, const std::vector<int> &shortResult,
+                                             const std::pair<std::vector<int>, const std::vector<int> > &shortInput, 
+                                             const std::vector<SubstringMode> &slFlags)
 {
     std::vector<int> sortedModeSuffix;
     std::vector<int> positionsOfShortInLong;
@@ -306,7 +303,8 @@ std::vector<int> sortSuffixesWithShortResult(std::vector<int> &input, std::vecto
         {
             positionsOfShortInLong.push_back(i);
         }
-    
+    }
+
     for (size_t i = 0; i < shortResult.size(); i++)
     {
         sortedModeSuffix.push_back(positionsOfShortInLong[shortResult[i]]);
@@ -390,7 +388,7 @@ void compareSuffix(const std::vector<int> &s, int first, int second)
     }
 }
 
-std::vector<int> createSuffixArrayFromIntArray(std::vector<int> &input)
+std::vector<int> createSuffixArrayFromIntArray(const std::vector<int> &input)
 {
     if (input.size() == 1)
     {
