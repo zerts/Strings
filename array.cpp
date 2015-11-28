@@ -306,20 +306,7 @@ std::vector<int> sortSuffixesWithShortResult(std::vector<int> &input, std::vecto
         {
             positionsOfShortInLong.push_back(i);
         }
-    }
-
-    /*for (size_t i = 0; i < positionsOfShortInLong.size(); i++)
-    {
-        out << i << " " << positionsOfShortInLong[i] << std::endl;
-    }
-    out << std::endl;
-
-    for (size_t i = 0; i < shortResult.size(); i++)
-    {
-        out << shortResult[i] << " ";
-    }
-    out << std::endl;*/
-
+    
     for (size_t i = 0; i < shortResult.size(); i++)
     {
         sortedModeSuffix.push_back(positionsOfShortInLong[shortResult[i]]);
@@ -416,21 +403,6 @@ std::vector<int> createSuffixArrayFromIntArray(std::vector<int> &input)
     std::vector<SubstringMode> slFlags = createSLflagsArray(input);
     std::pair<std::vector<int>, std::vector<int> > shortInput = createShorterString(input, slFlags);
     std::vector<int> shortResult = createSuffixArrayFromIntArray(shortInput.first);
-    /*out << slFlags.back() << std::endl;
-    for (size_t i = 0; i < shortResult.size(); i++)
-    {
-        out << shortResult[i] << ": ";
-        printSuffix(shortInput.first, shortResult[i]);
-        if (i < shortResult.size() - 1)
-        {
-            compareSuffix(shortInput.first, shortResult[i], shortResult[i + 1]);
-        }
-        out << std::endl;
-    }
-    printSuffix(shortInput.first, 0);
-    out << " - short input" << std::endl;
-    printSuffix(input, 0);
-    out << " - input" << std::endl << std::endl << std::endl;*/
     std::vector<int> result = sortSuffixesWithShortResult(input, shortResult, shortInput, slFlags);
     return result;
 }
@@ -439,17 +411,6 @@ std::vector<int> createSuffixArray(const std::string &s)
 {
     std::vector<int> input = stringToVector(s);
     std::vector<int> result = createSuffixArrayFromIntArray(input);
-    /*for (size_t i = 0; i < result.size(); i++)
-    {
-        out << result[i] << ": ";
-        printSuffix(input, result[i]);
-        if (i < result.size() - 1)
-        {
-            compareSuffix(input, result[i], result[i + 1]);
-        }
-        out << std::endl;
-    }
-    out << std::endl;*/
     return result;
 }
 
